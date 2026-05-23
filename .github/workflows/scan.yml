@@ -36,15 +36,7 @@ jobs:
           mcpscope report --format csv --output scan-report.csv
 
       - name: Check report
-        run: |
-          python3 -c "
-import json
-d = json.load(open('scan-report.json'))
-print(f'Scans: {d[\"summary\"][\"total_scans\"]}')
-print(f'Findings: {d[\"summary\"][\"total_findings\"]}')
-print(f'Critical: {d[\"summary\"][\"critical\"]}')
-assert d['summary']['total_scans'] > 0, 'No scans generated'
-"
+        run: python3 -c "import json; d=json.load(open('scan-report.json')); print('Scans:',d['summary']['total_scans']); print('Findings:',d['summary']['total_findings']); print('Critical:',d['summary']['critical']); assert d['summary']['total_scans']>0"
 
       - name: Upload reports
         uses: actions/upload-artifact@v4
