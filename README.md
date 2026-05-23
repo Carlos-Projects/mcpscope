@@ -97,6 +97,16 @@ mcpscope restore backup.db
 | MCPwn (Teycir legacy) | `mcpwn` | Legacy test-based format |
 | SARIF | `sarif` | Standard SARIF 2.1 format |
 
+## Screenshots
+
+| Dashboard Overview | Findings Table |
+|---|---|
+| ![Overview](https://via.placeholder.com/600x300/1e293b/3b82f6?text=Severity+Pie+%2B+Trend+%2B+Top+Tools) | ![Findings](https://via.placeholder.com/600x300/1e293b/3b82f6?text=Filterable+Findings+Table) |
+| **Scan Diff** | **Finding Detail** |
+| ![Diff](https://via.placeholder.com/600x300/1e293b/3b82f6?text=Scan+Comparison) | ![Detail](https://via.placeholder.com/600x300/1e293b/3b82f6?text=Finding+Detail+View) |
+
+_Run `mcpscope seed && mcpscope serve` and open http://localhost:8080 to see the live dashboard._
+
 ## CI/CD Integration
 
 Secure the API with an API key:
