@@ -1,0 +1,29 @@
+{
+  "server_url": "https://mcp-server.example.com/mcp",
+  "scan_results": [
+    {
+      "tool_name": "add",
+      "status": "completed",
+      "findings": {
+        "api_analyzer": {
+          "severity": "HIGH",
+          "total_findings": 1,
+          "threats": { "items": [{
+            "technique_id": "AITech-8.2",
+            "technique_name": "Data Exfiltration",
+            "items": [{
+              "sub_technique_id": "AISubtech-8.2.3",
+              "sub_technique_name": "Data Exfiltration via Agent Tooling",
+              "max_severity": "HIGH",
+              "description": "Sensitive data exposure"
+            }]
+          }]},
+          "threat_names": ["Data Exfiltration"],
+          "threat_summary": "Tool may expose data"
+        },
+        "yara_analyzer": {"severity": "SAFE", "total_findings": 0}
+      },
+      "is_safe": false
+    }
+  ]
+}

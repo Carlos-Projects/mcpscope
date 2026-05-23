@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcpscope"
+version = "0.1.0"
+description = "Unified security dashboard for MCP/A2A scanner results"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+keywords = ["mcp", "a2a", "security", "scanning"]
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.27.0",
+    "httpx>=0.27.0",
+    "jinja2>=3.1.0",
+    "plotly>=5.20.0",
+    "pydantic>=2.6.0",
+    "rich>=13.7.0",
+]
+[project.optional-dependencies]
+pdf = ["weasyprint>=62.0"]
+dev = ["pytest>=8.0", "httpx>=0.27.0"]
+
+[project.scripts]
+mcpscope = "mcpscope.cli:cli"
+
+[tool.setuptools.packages.find]
+include = ["mcpscope", "mcpscope.*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

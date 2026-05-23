@@ -1,0 +1,13 @@
+{
+  "target": "mcp.json",
+  "servers": [{"id": "s1", "name": "Demo"}],
+  "issues": [
+    {
+      "code": "E001",
+      "severity": "high",
+      "message": "Prompt injection risk",
+      "tool_name": "add",
+      "description": "Tool description issue"
+    }
+  ]
+}

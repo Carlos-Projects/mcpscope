@@ -1,0 +1,51 @@
+name: MCP-Scope Security Scan
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * *'
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install MCP-Scope
+        run: |
+          pip install mcpscope
+
+      - name: Run mcp-scan
+        run: |
+          mcpscope scan mcp-scan https://mcp-server.example.com/mcp || true
+
+      - name: Generate report
+        run: |
+          mcpscope report --format json --output scan-report.json
+          mcpscope report --format csv --output scan-report.csv
+
+      - name: Check for critical findings
+        run: |
+          CRITICAL=$(python3 -c "
+import json
+d = json.load(open('scan-report.json'))
+print(d['summary']['critical'])
+")
+          if [ "$CRITICAL" -gt "0" ]; then
+            echo "::warning::CRITICAL findings detected: $CRITICAL"
+          fi
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcpscope-reports
+          path: |
+            scan-report.json
+            scan-report.csv

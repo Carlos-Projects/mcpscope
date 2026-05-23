@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP-Scope Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    {% if auto_refresh and auto_refresh > 0 %}
+    <meta http-equiv="refresh" content="{{ auto_refresh }}">
+    {% endif %}
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; }
+        a { color: #3b82f6; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .header { background: #1e293b; padding: 20px 30px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 24px; font-weight: 700; }
+        .header h1 span { color: #3b82f6; }
+        .header p { color: #94a3b8; font-size: 14px; margin-top: 4px; }
+        .header-right { text-align: right; font-size: 12px; color: #64748b; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .card { background: #1e293b; border-radius: 10px; padding: 20px; border: 1px solid #334155; }
+        .card .label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; }
+        .card .value { font-size: 32px; font-weight: 700; margin-top: 6px; }
+        .card.critical .value { color: #dc2626; }
+        .card.high .value { color: #ea580c; }
+        .card.medium .value { color: #ca8a04; }
+        .card.low .value { color: #2563eb; }
+        .card.info .value { color: #6b7280; }
+        .card.total .value { color: #3b82f6; }
+        .card.scans .value { color: #8b5cf6; }
+        .filters { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+        .filters select, .filters input { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 6px; padding: 8px 12px; font-size: 13px; }
+        .filters select:focus, .filters input:focus { outline: none; border-color: #3b82f6; }
+        .filters label { font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
+        .chart-box { background: #1e293b; border-radius: 10px; padding: 15px; border: 1px solid #334155; }
+        .chart-box h3 { font-size: 14px; color: #94a3b8; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+        .chart-box.full { grid-column: 1 / -1; }
+        .chart-box.loading { opacity: 0.5; pointer-events: none; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 10px 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; border-bottom: 1px solid #334155; }
+        td { padding: 10px 12px; border-bottom: 1px solid #1e293b; font-size: 14px; }
+        tr:hover td { background: #1a2332; }
+        .severity-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+        .severity-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+        .severity-critical { background: #450a0a; color: #fca5a5; }
+        .severity-high { background: #431407; color: #fdba74; }
+        .severity-medium { background: #422006; color: #fde68a; }
+        .severity-low { background: #0c1f3f; color: #93c5fd; }
+        .severity-info { background: #1f2937; color: #9ca3af; }
+        .empty-state { text-align: center; padding: 60px 20px; color: #64748b; }
+        .empty-state h2 { font-size: 20px; margin-bottom: 10px; }
+        .empty-state code { background: #1e293b; padding: 2px 6px; border-radius: 4px; font-size: 14px; }
+        .nav-tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 1px solid #334155; }
+        .nav-tabs a { padding: 10px 20px; font-size: 14px; color: #94a3b8; border-bottom: 2px solid transparent; }
+        .nav-tabs a.active { color: #3b82f6; border-bottom-color: #3b82f6; }
+        .detail-view { padding: 20px 0; }
+        .detail-view h2 { font-size: 20px; margin-bottom: 15px; }
+        .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .detail-field { margin-bottom: 15px; }
+        .detail-field .field-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 4px; }
+        .detail-field .field-value { font-size: 14px; color: #e2e8f0; word-break: break-word; }
+        .detail-field .field-value pre { background: #1e293b; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 12px; }
+        .pagination { display: flex; justify-content: center; gap: 8px; margin-top: 15px; }
+        .pagination button { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+        .pagination button:hover { background: #334155; }
+        .pagination button.active { background: #3b82f6; border-color: #3b82f6; }
+        .pagination button:disabled { opacity: 0.4; cursor: default; }
+        .clickable { cursor: pointer; }
+        .clickable:hover { background: #1a2332; }
+        @media (max-width: 768px) { .charts-grid { grid-template-columns: 1fr; } .detail-grid { grid-template-columns: 1fr; } .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>MCP-<span>Scope</span></h1>
+            <p>Unified MCP/A2A Security Scanner Dashboard</p>
+        </div>
+        <div class="header-right">
+            {% if auto_refresh and auto_refresh > 0 %}Auto-refresh: {{ auto_refresh }}s{% endif %}
+        </div>
+    </div>
+    <div class="container">
+        {% if detail_finding is defined and detail_finding %}
+        <div class="nav-tabs">
+            <a href="/">&larr; Dashboard</a>
+            <a href="#" class="active">Finding Detail</a>
+        </div>
+        <div class="detail-view">
+            <h2>{{ detail_finding.title }}</h2>
+            <div class="detail-grid">
+                <div class="detail-field">
+                    <div class="field-label">Severity</div>
+                    <div class="field-value"><span class="severity-badge severity-{{ detail_finding.severity.value }}">{{ detail_finding.severity.value|upper }}</span></div>
+                </div>
+                <div class="detail-field">
+                    <div class="field-label">Scanner</div>
+                    <div class="field-value">{{ detail_finding.scanner }}</div>
+                </div>
+                <div class="detail-field">
+                    <div class="field-label">Tool / Resource</div>
+                    <div class="field-value">{{ detail_finding.tool_name }}</div>
+                </div>
+                <div class="detail-field">
+                    <div class="field-label">Scan ID</div>
+                    <div class="field-value">{{ detail_finding.scan_id }}</div>
+                </div>
+                {% if detail_scan %}
+                <div class="detail-field">
+                    <div class="field-label">Scan Target</div>
+                    <div class="field-value">{{ detail_scan.target }}</div>
+                </div>
+                <div class="detail-field">
+                    <div class="field-label">Scan Date</div>
+                    <div class="field-value">{{ detail_scan.created_at[:19] }}</div>
+                </div>
+                {% endif %}
+                <div class="detail-field">
+                    <div class="field-label">Finding ID</div>
+                    <div class="field-value"><code>{{ detail_finding.id }}</code></div>
+                </div>
+                <div class="detail-field">
+                    <div class="field-label">Created At</div>
+                    <div class="field-value">{{ detail_finding.created_at[:19] }}</div>
+                </div>
+            </div>
+            {% if detail_finding.description %}
+            <div class="detail-field">
+                <div class="field-label">Description</div>
+                <div class="field-value">{{ detail_finding.description }}</div>
+            </div>
+            {% endif %}
+            {% if detail_finding.recommendation %}
+            <div class="detail-field">
+                <div class="field-label">Recommendation</div>
+                <div class="field-value">{{ detail_finding.recommendation }}</div>
+            </div>
+            {% endif %}
+            {% if detail_finding.cvss_score %}
+            <div class="detail-field">
+                <div class="field-label">CVSS Score</div>
+                <div class="field-value">{{ detail_finding.cvss_score }}</div>
+            </div>
+            {% endif %}
+            {% if detail_finding.cve_id %}
+            <div class="detail-field">
+                <div class="field-label">CVE</div>
+                <div class="field-value">{{ detail_finding.cve_id }}</div>
+            </div>
+            {% endif %}
+            {% if detail_finding.raw_data %}
+            <div class="detail-field">
+                <div class="field-label">Raw Data</div>
+                <div class="field-value"><pre>{{ detail_finding.raw_data | tojson(indent=2) }}</pre></div>
+            </div>
+            {% endif %}
+        </div>
+        {% elif total_scans == 0 %}
+        <div class="empty-state">
+            <h2>No scan data yet</h2>
+            <p>Import scanner results to get started:</p>
+            <p><code>mcpscope import cisco-mcp results.json</code></p>
+            <p><code>mcpscope import mcpwn results.json</code></p>
+            <p><code>mcpscope import sarif report.sarif</code></p>
+            <p style="margin-top:20px;">Or generate demo data:</p>
+            <p><code>mcpscope seed</code></p>
+            <p style="margin-top:20px;">Then start the dashboard with <code>mcpscope serve</code></p>
+        </div>
+        {% else %}
+        <div class="stats-grid">
+            <div class="card scans"><div class="label">Total Scans</div><div class="value">{{ total_scans }}</div></div>
+            <div class="card total"><div class="label">Total Findings</div><div class="value">{{ total_findings }}</div></div>
+            <div class="card critical"><div class="label">Critical</div><div class="value">{{ critical }}</div></div>
+            <div class="card high"><div class="label">High</div><div class="value">{{ high }}</div></div>
+            <div class="card medium"><div class="label">Medium</div><div class="value">{{ medium }}</div></div>
+            <div class="card low"><div class="label">Low</div><div class="value">{{ low }}</div></div>
+            <div class="card info"><div class="label">Info</div><div class="value">{{ info }}</div></div>
+        </div>
+
+        <div class="nav-tabs">
+            <a href="#" class="active" onclick="showTab('overview')" id="tab-overview">Overview</a>
+            <a href="#" onclick="showTab('findings')" id="tab-findings">Findings</a>
+            <a href="#" onclick="showTab('scans')" id="tab-scans">Scans</a>
+            <a href="#" onclick="showTab('duplicates');loadDuplicates()" id="tab-duplicates">Duplicates ({{ duplicates|length }})</a>
+            <a href="#" onclick="showTab('diff')" id="tab-diff">Diff</a>
+        </div>
+
+        <div id="section-overview">
+            <div class="charts-grid">
+                <div class="chart-box" id="severity-chart">
+                    <h3>Findings by Severity</h3>
+                </div>
+                <div class="chart-box" id="top-tools-chart">
+                    <h3>Top Vulnerable Tools</h3>
+                </div>
+                <div class="chart-box full" id="trend-chart">
+                    <h3>Severity Trend Over Time</h3>
+                </div>
+            </div>
+        </div>
+
+        <div id="section-findings" style="display:none">
+            <div class="filters">
+                <label>Severity</label>
+                <select id="filter-severity" onchange="loadFindings()">
+                    <option value="">All</option>
+                    <option value="critical">Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                    <option value="info">Info</option>
+                </select>
+                <label>Scanner</label>
+                <select id="filter-scanner" onchange="loadFindings()">
+                    <option value="">All</option>
+                    {% for s in scanners %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+                </select>
+                <label>Tool</label>
+                <select id="filter-tool" onchange="loadFindings()">
+                    <option value="">All</option>
+                    {% for t in tool_names %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+                </select>
+                <label>Search</label>
+                <input type="text" id="filter-search" placeholder="Search findings..." onkeyup="if(event.key==='Enter')loadFindings()">
+                <button onclick="loadFindings()" style="background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:8px 16px;cursor:pointer;">Filter</button>
+            </div>
+            <div class="chart-box full" id="findings-table-container">
+                <div id="findings-table-placeholder">Loading...</div>
+            </div>
+            <div class="pagination" id="findings-pagination"></div>
+        </div>
+
+        <div id="section-scans" style="display:none">
+            <div class="chart-box full">
+                <h3>Scan History</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Scanner</th>
+                            <th>Target</th>
+                            <th>Total</th>
+                            <th>Critical</th>
+                            <th>High</th>
+                            <th>Medium</th>
+                            <th>Low</th>
+                            <th>Info</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for scan in scans %}
+                        <tr>
+                            <td><a href="#">{{ scan.id[:12] }}...</a></td>
+                            <td>{{ scan.scanner }}</td>
+                            <td>{{ scan.target or '-' }}</td>
+                            <td>{{ scan.findings_count }}</td>
+                            <td><span class="severity-badge severity-critical">{{ scan.critical_count }}</span></td>
+                            <td><span class="severity-badge severity-high">{{ scan.high_count }}</span></td>
+                            <td><span class="severity-badge severity-medium">{{ scan.medium_count }}</span></td>
+                            <td><span class="severity-badge severity-low">{{ scan.low_count }}</span></td>
+                            <td><span class="severity-badge severity-info">{{ scan.info_count }}</span></td>
+                            <td>{{ scan.created_at[:10] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="section-duplicates" style="display:none">
+            <div class="chart-box full" id="duplicates-container">
+                <h3>Duplicate Findings (same tool + title + severity across scans)</h3>
+                <div id="duplicates-content">Loading...</div>
+            </div>
+        </div>
+
+        <div id="section-diff" style="display:none">
+            <div class="filters">
+                <label>Scan A</label>
+                <select id="diff-scan-a">
+                    <option value="">Select scan...</option>
+                    {% for s in scans %}<option value="{{ s.id }}">[{{ s.scanner }}] {{ s.target }} ({{ s.created_at[:10] }})</option>{% endfor %}
+                </select>
+                <label>Scan B</label>
+                <select id="diff-scan-b">
+                    <option value="">Select scan...</option>
+                    {% for s in scans %}<option value="{{ s.id }}">[{{ s.scanner }}] {{ s.target }} ({{ s.created_at[:10] }})</option>{% endfor %}
+                </select>
+                <button onclick="runDiff()" style="background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:8px 16px;cursor:pointer;">Compare</button>
+            </div>
+            <div class="chart-box full">
+                <div id="diff-results"><p style="color:#64748b;padding:20px;">Select two scans and click Compare.</p></div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        var currentPage = 1;
+        {% if total_findings > 0 %}
+        var severityData = [{
+            values: [{{ critical }}, {{ high }}, {{ medium }}, {{ low }}, {{ info }}],
+            labels: ['Critical', 'High', 'Medium', 'Low', 'Info'],
+            marker: { colors: ['#dc2626', '#ea580c', '#ca8a04', '#2563eb', '#6b7280'] },
+            type: 'pie',
+            hole: 0.4,
+            textinfo: 'label+percent',
+            textfont: { color: '#e2e8f0' }
+        }];
+        Plotly.newPlot('severity-chart', severityData, {
+            paper_bgcolor: '#1e293b', plot_bgcolor: '#1e293b',
+            font: { color: '#94a3b8' }, margin: { t: 10, b: 10, l: 10, r: 10 },
+            height: 300, showlegend: false
+        }, { responsive: true, displayModeBar: false });
+
+        var tools = {{ top_tools | tojson | safe }};
+        var toolNames = tools.map(function(t) { return t.tool_name; });
+        var toolTotal = tools.map(function(t) { return t.total; });
+        var toolCritical = tools.map(function(t) { return t.critical_high; });
+        Plotly.newPlot('top-tools-chart', [
+            { x: toolNames, y: toolTotal, name: 'Total', type: 'bar', marker: { color: '#3b82f6' } },
+            { x: toolNames, y: toolCritical, name: 'Critical/High', type: 'bar', marker: { color: '#dc2626' } }
+        ], {
+            paper_bgcolor: '#1e293b', plot_bgcolor: '#1e293b',
+            font: { color: '#94a3b8' }, margin: { t: 10, b: 60, l: 40, r: 10 },
+            height: 300, barmode: 'group',
+            xaxis: { tickfont: { size: 10 }, automargin: true },
+            yaxis: { tickfont: { size: 10 } },
+            legend: { font: { size: 10 }, orientation: 'h', y: 1.1 }
+        }, { responsive: true, displayModeBar: false });
+
+        var trend = {{ trend_data | tojson | safe }};
+        if (trend && trend.length > 0) {
+            var dates = [...new Set(trend.map(function(d) { return d.date; }))].sort();
+            var severities = ['critical', 'high', 'medium', 'low', 'info'];
+            var colors = { critical: '#dc2626', high: '#ea580c', medium: '#ca8a04', low: '#2563eb', info: '#6b7280' };
+            var traces = severities.map(function(sev) {
+                var counts = dates.map(function(date) {
+                    var match = trend.find(function(d) { return d.date === date && d.severity === sev; });
+                    return match ? match.count : 0;
+                });
+                return { x: dates, y: counts, name: sev.charAt(0).toUpperCase() + sev.slice(1),
+                    type: 'scatter', mode: 'lines+markers', marker: { color: colors[sev], size: 6 }, line: { width: 2 } };
+            });
+            Plotly.newPlot('trend-chart', traces, {
+                paper_bgcolor: '#1e293b', plot_bgcolor: '#1e293b',
+                font: { color: '#94a3b8' }, margin: { t: 10, b: 40, l: 40, r: 10 },
+                height: 300, xaxis: { tickfont: { size: 10 }, gridcolor: '#334155' },
+                yaxis: { tickfont: { size: 10 }, gridcolor: '#334155' },
+                legend: { font: { size: 10 }, orientation: 'h', y: 1.1 }
+            }, { responsive: true, displayModeBar: false });
+        }
+        {% endif %}
+
+        function showTab(name) {
+            ['overview','findings','scans','duplicates','diff'].forEach(function(t) {
+                var el = document.getElementById('section-'+t);
+                if (el) el.style.display = t === name ? '' : 'none';
+                var tab = document.getElementById('tab-'+t);
+                if (tab) tab.classList.toggle('active', t === name);
+            });
+            if (name === 'findings') loadFindings();
+        }
+
+        function loadDuplicates() {
+            var cont = document.getElementById('duplicates-content');
+            fetch('/api/stats/duplicates')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (!data.duplicates || data.duplicates.length === 0) {
+                        cont.innerHTML = '<p style="color:#64748b;padding:20px;">No duplicate findings found.</p>';
+                        return;
+                    }
+                    var html = '<table><thead><tr><th>Tool</th><th>Title</th><th>Severity</th><th>Count</th><th>Scanner</th><th>Scans</th></tr></thead><tbody>';
+                    data.duplicates.forEach(function(d) {
+                        var sev = (d.severity||'info').toLowerCase();
+                        html += '<tr><td>' + d.tool_name + '</td><td>' + d.title + '</td>';
+                        html += '<td><span class="severity-badge severity-' + sev + '">' + sev.toUpperCase() + '</span></td>';
+                        html += '<td>' + d.count + '</td><td>' + (d.scanner||'-') + '</td>';
+                        html += '<td>' + (d.scan_ids||'').split(',').length + ' scans</td></tr>';
+                    });
+                    html += '</tbody></table>';
+                    html += '<p style="color:#64748b;font-size:12px;margin-top:8px;">Grouped by exact match on tool_name + title + severity</p>';
+                    cont.innerHTML = html;
+                });
+        }
+
+        function runDiff() {
+            var a = document.getElementById('diff-scan-a').value;
+            var b = document.getElementById('diff-scan-b').value;
+            if (!a || !b) { alert('Select two scans'); return; }
+            if (a === b) { alert('Select two different scans'); return; }
+            var cont = document.getElementById('diff-results');
+            cont.innerHTML = 'Loading...';
+            fetch('/api/scans/' + a + '/diff/' + b)
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    var html = '<div class="stats-grid" style="margin-bottom:15px;">';
+                    html += '<div class="card"><div class="label">Scan A</div><div class="value" style="font-size:18px;">' + d.scan_a.target + '</div><div style="font-size:12px;color:#64748b;">' + d.scan_a.scanner + ' (' + d.scan_a.findings_count + ' findings)</div></div>';
+                    html += '<div class="card"><div class="label">Scan B</div><div class="value" style="font-size:18px;">' + d.scan_b.target + '</div><div style="font-size:12px;color:#64748b;">' + d.scan_b.scanner + ' (' + d.scan_b.findings_count + ' findings)</div></div>';
+                    html += '<div class="card" style="border-color:#dc2626;"><div class="label">New in B</div><div class="value" style="color:#dc2626;font-size:24px;">' + d.new_count + '</div></div>';
+                    html += '<div class="card" style="border-color:#16a34a;"><div class="label">Fixed in B</div><div class="value" style="color:#16a34a;font-size:24px;">' + d.fixed_count + '</div></div>';
+                    html += '<div class="card" style="border-color:#64748b;"><div class="label">Unchanged</div><div class="value" style="color:#94a3b8;font-size:24px;">' + d.unchanged_count + '</div></div>';
+                    html += '</div>';
+
+                    if (d.new_findings && d.new_findings.length > 0) {
+                        html += '<h4 style="color:#dc2626;margin:10px 0;">New Findings in Scan B</h4><table><thead><tr><th>Severity</th><th>Tool</th><th>Title</th></tr></thead><tbody>';
+                        d.new_findings.forEach(function(f) {
+                            var sev = (f.severity||'info').toLowerCase();
+                            html += '<tr><td><span class="severity-badge severity-' + sev + '">' + sev.toUpperCase() + '</span></td><td>' + f.tool_name + '</td><td>' + (f.title||'').substring(0,60) + '</td></tr>';
+                        });
+                        html += '</tbody></table>';
+                    }
+                    if (d.fixed_findings && d.fixed_findings.length > 0) {
+                        html += '<h4 style="color:#16a34a;margin:10px 0;">Fixed Findings (in A but not B)</h4><table><thead><tr><th>Severity</th><th>Tool</th><th>Title</th></tr></thead><tbody>';
+                        d.fixed_findings.forEach(function(f) {
+                            var sev = (f.severity||'info').toLowerCase();
+                            html += '<tr><td><span class="severity-badge severity-' + sev + '">' + sev.toUpperCase() + '</span></td><td>' + f.tool_name + '</td><td>' + (f.title||'').substring(0,60) + '</td></tr>';
+                        });
+                        html += '</tbody></table>';
+                    }
+                    cont.innerHTML = html;
+                })
+                .catch(function(e) { cont.innerHTML = '<p style="color:#dc2626;">Error: ' + e + '</p>'; });
+        }
+
+        function loadFindings(page) {
+            currentPage = page || currentPage;
+            var sev = document.getElementById('filter-severity').value;
+            var scanner = document.getElementById('filter-scanner').value;
+            var tool = document.getElementById('filter-tool').value;
+            var search = document.getElementById('filter-search').value;
+            var cont = document.getElementById('findings-table-placeholder');
+            cont.innerHTML = 'Loading...';
+            cont.closest('.chart-box').classList.add('loading');
+
+            var params = 'page=' + currentPage + '&page_size=25';
+            if (sev) params += '&severity=' + sev;
+            if (scanner) params += '&scanner=' + scanner;
+            if (tool) params += '&tool_name=' + encodeURIComponent(tool);
+            if (search) params += '&search=' + encodeURIComponent(search);
+
+            fetch('/api/findings?' + params)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var html = '<table><thead><tr><th>Severity</th><th>Title</th><th>Tool</th><th>Scanner</th><th>Date</th></tr></thead><tbody>';
+                    data.findings.forEach(function(f) {
+                        var sevClass = 'severity-' + (f.severity || 'info');
+                        var detailUrl = '/findings/' + f.id;
+                        html += '<tr class="clickable" onclick="window.location=\'' + detailUrl + '\'">';
+                        html += '<td><span class="severity-badge ' + sevClass + '">' + (f.severity||'').toUpperCase() + '</span></td>';
+                        html += '<td>' + (f.title||'').substring(0,80) + '</td>';
+                        html += '<td>' + (f.tool_name||'') + '</td>';
+                        html += '<td>' + (f.scanner||'') + '</td>';
+                        html += '<td>' + (f.created_at||'').substring(0,10) + '</td>';
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table>';
+                    cont.innerHTML = html;
+
+                    var p = document.getElementById('findings-pagination');
+                    var pages = data.pages || 1;
+                    var phtml = '<button onclick="loadFindings(1)"' + (currentPage<=1?' disabled':'') + '>&laquo;</button>';
+                    for (var i = Math.max(1,currentPage-2); i <= Math.min(pages,currentPage+2); i++) {
+                        phtml += '<button onclick="loadFindings('+i+')"' + (i===currentPage?' class="active"':'') + '>'+i+'</button>';
+                    }
+                    phtml += '<button onclick="loadFindings('+pages+')"' + (currentPage>=pages?' disabled':'') + '>&raquo;</button>';
+                    p.innerHTML = phtml;
+                    cont.closest('.chart-box').classList.remove('loading');
+                });
+        }
+    </script>
+</body>
+</html>

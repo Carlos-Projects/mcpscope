@@ -1,0 +1,14 @@
+{
+  "tool": "Mcpwn",
+  "target": "server.py",
+  "findings": [
+    {
+      "id": "MCP-001",
+      "severity": "CRITICAL",
+      "title": "Tool Poisoning",
+      "tool": "fetch_url",
+      "description": "Hidden instructions found",
+      "recommendation": "Audit descriptions"
+    }
+  ]
+}
