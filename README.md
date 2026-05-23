@@ -1,8 +1,20 @@
+<div align="center">
+
 # MCP-Scope
 
-Unified security dashboard for MCP/A2A scanner results.
+**Unified security dashboard for MCP/A2A scanner results**
 
-Consumes output from multiple MCP/A2A security scanners (Cisco MCP Scanner, Cisco A2A Scanner, mcp-scan, MCPwn, SARIF) and presents a consolidated view of your security posture.
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://python.org)
+[![Tests](https://img.shields.io/github/actions/workflow/status/Carlos-Projects/mcpscope/scan.yml?label=tests)](https://github.com/Carlos-Projects/mcpscope/actions)
+[![License](https://img.shields.io/github/license/Carlos-Projects/mcpscope)](LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/Carlos-Projects/mcpscope)](https://github.com/Carlos-Projects/mcpscope/releases)
+[![Code style](https://img.shields.io/badge/code%20style-ruff-261230)](https://docs.astral.sh/ruff)
+
+---
+
+</div>
+
+Consumes output from multiple MCP/A2A security scanners (Cisco MCP Scanner, Cisco A2A Scanner, mcp-scan, MCPwn, SARIF) and presents a consolidated view of your security posture via a web dashboard, REST API, and CLI.
 
 ## Quick Start
 
@@ -13,6 +25,9 @@ pip install -e .
 mcpscope seed
 mcpscope serve
 
+# Run a scan directly against a server
+mcpscope scan mcp-scan https://mcp-server.example.com/mcp
+
 # Import results from different scanners
 mcpscope import cisco-mcp results.json
 mcpscope import cisco-a2a results.json
@@ -20,7 +35,7 @@ mcpscope import mcpwn results.json
 mcpscope import sarif report.sarif
 
 # Export a compliance report
-mcpscope report --format pdf --output security-report.pdf
+mcpscope report --format csv --output report.csv
 
 # Backup/Restore
 mcpscope backup backup.db
@@ -32,9 +47,11 @@ mcpscope restore backup.db
 | Command | Description |
 |---------|-------------|
 | `serve` | Start the FastAPI web dashboard |
+| `scan` | Run a scanner directly against a target |
 | `import` | Import scanner JSON/SARIF results into SQLite |
 | `report` | Export JSON, CSV, or PDF compliance report |
 | `seed` | Generate demo scan data |
+| `prune` | Delete scans older than N days |
 | `backup` | Backup the SQLite database |
 | `restore` | Restore the SQLite database from backup |
 | `config` | View or set configuration options |
@@ -45,25 +62,29 @@ mcpscope restore backup.db
 |----------|-------------|
 | `GET /` | Dashboard UI with filters and tabs |
 | `GET /findings/{id}` | Finding detail page |
+| `GET /docs` | Swagger UI |
 | `GET /api/health` | Health check |
 | `GET /api/scans` | List scans (paginated) |
-| `GET /api/scans/{id}` | Scan details with findings (paginated) |
-| `GET /api/findings` | Query findings (paginated, filter by severity/scanner/tool/search) |
-| `GET /api/findings/{id}` | Single finding with full detail |
+| `GET /api/scans/{id}` | Scan details with findings |
+| `GET /api/scans/{a}/diff/{b}` | Compare two scans |
+| `GET /api/findings` | Query findings (paginated, filterable) |
+| `GET /api/findings/{id}` | Single finding |
 | `GET /api/stats/summary` | Aggregated statistics |
 | `GET /api/stats/top-tools` | Most vulnerable tools |
 | `GET /api/stats/severity-trend` | Findings over time |
-| `GET /api/stats/scanners` | List distinct scanners |
-| `GET /api/stats/tool-names` | List distinct tool names |
+| `GET /api/stats/duplicates` | Deduplicated findings |
 | `GET /api/report/json` | Full JSON report |
+| `GET /api/report/csv` | CSV export |
 
 ## Dashboard Features
 
 - **Overview tab** — Severity pie chart, top tools bar chart, severity trend over time
 - **Findings tab** — Filterable table with severity/scanner/tool/search, pagination, clickable rows for detail view
+- **Duplicates tab** — Grouped findings by tool + title + severity across scans
+- **Diff tab** — Side-by-side comparison between any two scans
 - **Scans tab** — Historical scan table with severity counts
 - **Auto-refresh** — Configurable auto-refresh interval
-- **Finding detail page** — Full details including raw data
+- **Finding detail page** — Full details including raw JSON data
 
 ## Supported Scanners
 
@@ -76,6 +97,27 @@ mcpscope restore backup.db
 | MCPwn (Teycir legacy) | `mcpwn` | Legacy test-based format |
 | SARIF | `sarif` | Standard SARIF 2.1 format |
 
+## CI/CD Integration
+
+Secure the API with an API key:
+```bash
+mcpscope config set api_key "your-secret-key"
+mcpscope serve
+# All /api/* endpoints now require: X-API-Key: your-secret-key
+```
+
+A [GitHub Actions workflow](.github/workflows/scan.yml) is included for automated scanning.
+
+Slack alerts for critical/high findings:
+```bash
+mcpscope config set slack_webhook_url "https://hooks.slack.com/services/..."
+```
+
+Webhook URLs for custom integrations:
+```bash
+mcpscope config set webhook_urls '["https://your-server.com/webhook"]'
+```
+
 ## Configuration
 
 Config file at `~/.mcpscope/config.json`:
@@ -84,6 +126,7 @@ Config file at `~/.mcpscope/config.json`:
 mcpscope config show
 mcpscope config set port 9090
 mcpscope config set auto_refresh_seconds 60
+mcpscope config set max_upload_mb 100
 ```
 
 ## Docker
@@ -99,3 +142,7 @@ docker run -p 8080:8080 -v mcpscope-data:/root/.mcpscope mcpscope
 pip install -e ".[dev]"
 pytest
 ```
+
+## License
+
+[MIT](LICENSE)
