@@ -31,6 +31,8 @@ jobs:
           generate_release_notes: true
           files: dist/*
 
-      # Uncomment below to publish to PyPI automatically
-      # - name: Publish to PyPI
-      #   uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: twine upload dist/*

@@ -76,6 +76,46 @@ mcpscope restore backup.db
 | `GET /api/report/json` | Full JSON report |
 | `GET /api/report/csv` | CSV export |
 
+## API Usage Examples
+
+```bash
+# Health check
+curl http://localhost:8080/api/health
+
+# List scans (paginated)
+curl "http://localhost:8080/api/scans?page=1&page_size=10"
+
+# Get scan with findings
+curl http://localhost:8080/api/scans/scan-id-here
+
+# Query findings with filters
+curl "http://localhost:8080/api/findings?severity=critical&page=1"
+
+# Search findings
+curl "http://localhost:8080/api/findings?search=command"
+
+# Compare two scans
+curl "http://localhost:8080/api/scans/scan-a/diff/scan-b"
+
+# Get stats summary
+curl http://localhost:8080/api/stats/summary
+
+# Get duplicates
+curl http://localhost:8080/api/stats/duplicates
+
+# Export as CSV
+curl http://localhost:8080/api/report/csv -o report.csv
+
+# Full JSON report
+curl http://localhost:8080/api/report/json
+
+# With API key authentication
+curl -H "X-API-Key: your-key" http://localhost:8080/api/scans
+
+# Swagger docs
+open http://localhost:8080/docs
+```
+
 ## Dashboard Features
 
 - **Overview tab** — Severity pie chart, top tools bar chart, severity trend over time

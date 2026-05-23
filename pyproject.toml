@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Unified security dashboard for MCP/A2A scanner results"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = "MIT"
 keywords = ["mcp", "a2a", "security", "scanning"]
 dependencies = [
     "fastapi>=0.110.0",
