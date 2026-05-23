@@ -1,4 +1,4 @@
-name: MCP-Scope Security Scan
+name: CI
 on:
   push:
     branches: [main]
@@ -8,7 +8,7 @@ on:
     - cron: '0 6 * * *'
 
 jobs:
-  security-scan:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,29 +18,33 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Install MCP-Scope
+      - name: Install dependencies
         run: |
-          pip install mcpscope
+          pip install -e ".[dev]"
 
-      - name: Run mcp-scan
+      - name: Run tests
         run: |
-          mcpscope scan mcp-scan https://mcp-server.example.com/mcp || true
+          pytest -v
 
-      - name: Generate report
+      - name: Generate demo data
+        run: |
+          mcpscope seed
+
+      - name: Generate reports
         run: |
           mcpscope report --format json --output scan-report.json
           mcpscope report --format csv --output scan-report.csv
 
-      - name: Check for critical findings
+      - name: Check report
         run: |
-          CRITICAL=$(python3 -c "
+          python3 -c "
 import json
 d = json.load(open('scan-report.json'))
-print(d['summary']['critical'])
-")
-          if [ "$CRITICAL" -gt "0" ]; then
-            echo "::warning::CRITICAL findings detected: $CRITICAL"
-          fi
+print(f'Scans: {d[\"summary\"][\"total_scans\"]}')
+print(f'Findings: {d[\"summary\"][\"total_findings\"]}')
+print(f'Critical: {d[\"summary\"][\"critical\"]}')
+assert d['summary']['total_scans'] > 0, 'No scans generated'
+"
 
       - name: Upload reports
         uses: actions/upload-artifact@v4
