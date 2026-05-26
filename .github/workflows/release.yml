@@ -3,6 +3,7 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -30,6 +31,7 @@ jobs:
         with:
           generate_release_notes: true
           files: dist/*
+          fail_on_unmatched_files: false
 
       - name: Publish to PyPI
         env:
