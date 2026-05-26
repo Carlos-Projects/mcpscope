@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcpscope"
-version = "0.1.0"
+version = "0.1.1"
 description = "Unified security dashboard for MCP/A2A scanner results"
 readme = "README.md"
 requires-python = ">=3.10"
