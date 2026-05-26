@@ -10,6 +10,14 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 from mcpscope.models.finding import Severity
 from mcpscope.models.security_event import SecurityEvent
+from mcp_taxonomy import (
+    AttackCategory, Severity as TaxSeverity, DetectionMethod,
+    palisade_finding_to_taxonomy,
+    mcpguard_event_to_taxonomy,
+    mcpwn_finding_to_taxonomy,
+    agentgate_signal_to_taxonomy,
+)
+from mcp_taxonomy.core import CATEGORY_SEVERITY
 
 router = APIRouter()
 PAGE_SIZE = 50
@@ -49,6 +57,55 @@ def get_templates(request: Request):
 @router.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+@router.get("/api/taxonomy")
+def taxonomy_info():
+    """Return the canonical taxonomy definition."""
+    return {
+        "attack_categories": [c.value for c in AttackCategory],
+        "severities": [s.value for s in TaxSeverity],
+        "detection_methods": [m.value for m in DetectionMethod],
+        "category_severity": {c.value: s.value for c, s in CATEGORY_SEVERITY.items()},
+    }
+
+
+@router.post("/api/taxonomy/normalize")
+def normalize_taxonomy(body: dict):
+    """Normalize a finding/event from any project into the canonical taxonomy."""
+    source = body.get("source", "")
+    raw = body.get("raw", body)
+    if source == "palisade-scanner":
+        event = palisade_finding_to_taxonomy(raw)
+    elif source == "mcpguard":
+        event = mcpguard_event_to_taxonomy(raw)
+    elif source == "mcpwn":
+        event = mcpwn_finding_to_taxonomy(raw)
+    elif source == "agentgate":
+        event = agentgate_signal_to_taxonomy(
+            signal_type=raw.get("signal_type", ""),
+            weight=raw.get("weight", 0),
+            action=raw.get("action", ""),
+            path=raw.get("path", ""),
+            user_agent=raw.get("userAgent", raw.get("user_agent", "")),
+            score=raw.get("score", 0),
+        )
+    else:
+        return JSONResponse({"error": f"Unknown source: {source}"}, status_code=400)
+    return JSONResponse({
+        "source": event.source,
+        "attack_category": event.attack_category.value,
+        "severity": event.severity.value,
+        "confidence": event.confidence.value,
+        "detection_method": event.detection_method.value if isinstance(event.detection_method, DetectionMethod) else event.detection_method,
+        "title": event.title,
+        "description": event.description,
+        "recommendation": event.recommendation,
+        "target": event.target,
+        "snippet": event.snippet[:200] if event.snippet else "",
+        "blocked": event.blocked,
+        "risk_score": event.risk_score,
+    })
 
 
 def _session_value(password: str, client_ip: str) -> str:
