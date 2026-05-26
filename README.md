@@ -211,6 +211,15 @@ mcpscop_url: http://localhost:8000
 | `/api/events/stats` | GET | Event statistics |
 | `/api/events` | DELETE | Clear all events |
 
+## Related Projects
+
+MCPscop is part of the **Carlos-Projects** security ecosystem for AI agents:
+
+- [**MCPGuard**](https://github.com/Carlos-Projects/mcpguard) — Runtime security proxy for MCP/A2A protocols with HTMX dashboard
+- [**MCPwn**](https://github.com/Carlos-Projects/mcpwn) — Offensive security testing framework for MCP servers
+- [**Palisade Scanner**](https://github.com/Carlos-Projects/palisade-scanner) — Scan web content for prompt injection and adversarial content
+- [**AgentGate**](https://github.com/Carlos-Projects/agentgate) — Policy-based firewall and honeypot middleware for AI agents accessing websites
+
 ## License
 
 [MIT](LICENSE)
