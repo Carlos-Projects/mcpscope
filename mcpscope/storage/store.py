@@ -5,10 +5,10 @@ import json
 import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional
 
-from mcpscope.models.finding import Finding, Severity, SEVERITY_ORDER
+from mcpscope.models.finding import Finding, Severity
 from mcpscope.models.scan import ScanRun, ScanHistory
+from mcpscope.models.security_event import SecurityEvent
 from mcpscope.config import Settings
 
 DEFAULT_DB = Path.home() / ".mcpscope" / "mcpscope.db"
@@ -60,6 +60,20 @@ class Store:
             CREATE INDEX IF NOT EXISTS idx_findings_tool ON findings(tool_name);
             CREATE INDEX IF NOT EXISTS idx_findings_created ON findings(created_at);
             CREATE INDEX IF NOT EXISTS idx_findings_title ON findings(title);
+            CREATE TABLE IF NOT EXISTS security_events (
+                id TEXT PRIMARY KEY,
+                event_type TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                message TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT 'mcpguard',
+                tool TEXT,
+                details TEXT,
+                blocked INTEGER DEFAULT 1,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_events_created ON security_events(created_at);
+            CREATE INDEX IF NOT EXISTS idx_events_severity ON security_events(severity);
+            CREATE INDEX IF NOT EXISTS idx_events_type ON security_events(event_type);
         """)
 
     def save_scan(self, scan: ScanRun, findings: list[Finding]) -> ScanRun:
@@ -87,9 +101,19 @@ class Store:
                    (id, scanner, target, findings_count, critical_count, high_count,
                     medium_count, low_count, info_count, raw_file, created_at)
                    VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                (scan.id, scan.scanner, scan.target, scan.findings_count,
-                 scan.critical_count, scan.high_count, scan.medium_count,
-                 scan.low_count, scan.info_count, scan.raw_file, scan.created_at),
+                (
+                    scan.id,
+                    scan.scanner,
+                    scan.target,
+                    scan.findings_count,
+                    scan.critical_count,
+                    scan.high_count,
+                    scan.medium_count,
+                    scan.low_count,
+                    scan.info_count,
+                    scan.raw_file,
+                    scan.created_at,
+                ),
             )
             for f in findings:
                 self._conn.execute(
@@ -97,17 +121,29 @@ class Store:
                        (id, scan_id, scanner, tool_name, tool_version, severity,
                         title, description, recommendation, cvss_score, cve_id, raw_data, created_at)
                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (f.id, f.scan_id, f.scanner, f.tool_name, f.tool_version,
-                     f.severity.value if isinstance(f.severity, Severity) else f.severity,
-                     f.title, f.description, f.recommendation,
-                     f.cvss_score, f.cve_id,
-                     json.dumps(f.raw_data) if f.raw_data else None,
-                     f.created_at),
+                    (
+                        f.id,
+                        f.scan_id,
+                        f.scanner,
+                        f.tool_name,
+                        f.tool_version,
+                        f.severity.value
+                        if isinstance(f.severity, Severity)
+                        else f.severity,
+                        f.title,
+                        f.description,
+                        f.recommendation,
+                        f.cvss_score,
+                        f.cve_id,
+                        json.dumps(f.raw_data) if f.raw_data else None,
+                        f.created_at,
+                    ),
                 )
 
         cfg = Settings.load()
         if self._webhooks or cfg.slack_webhook_url:
             from mcpscope.webhooks import notify_scan_imported
+
             notify_scan_imported(
                 self._webhooks,
                 findings=findings,
@@ -122,10 +158,14 @@ class Store:
         return scan
 
     def get_all_scans(self) -> list[ScanRun]:
-        rows = self._conn.execute("SELECT * FROM scan_runs ORDER BY created_at DESC").fetchall()
+        rows = self._conn.execute(
+            "SELECT * FROM scan_runs ORDER BY created_at DESC"
+        ).fetchall()
         return [ScanRun(**dict(r)) for r in rows]
 
-    def get_scans_paginated(self, page: int = 1, page_size: int = PAGE_SIZE) -> tuple[list[ScanRun], int]:
+    def get_scans_paginated(
+        self, page: int = 1, page_size: int = PAGE_SIZE
+    ) -> tuple[list[ScanRun], int]:
         offset = (page - 1) * page_size
         count_row = self._conn.execute("SELECT COUNT(*) as c FROM scan_runs").fetchone()
         total = count_row["c"] if count_row else 0
@@ -136,13 +176,21 @@ class Store:
         return [ScanRun(**dict(r)) for r in rows], total
 
     def get_scan(self, scan_id: str) -> ScanRun | None:
-        row = self._conn.execute("SELECT * FROM scan_runs WHERE id = ?", (scan_id,)).fetchone()
+        row = self._conn.execute(
+            "SELECT * FROM scan_runs WHERE id = ?", (scan_id,)
+        ).fetchone()
         return ScanRun(**dict(row)) if row else None
 
-    def get_findings(self, scan_id: str | None = None, severity: str | None = None,
-                     tool_name: str | None = None, scanner: str | None = None,
-                     search: str | None = None,
-                     page: int = 1, page_size: int = PAGE_SIZE) -> tuple[list[Finding], int]:
+    def get_findings(
+        self,
+        scan_id: str | None = None,
+        severity: str | None = None,
+        tool_name: str | None = None,
+        scanner: str | None = None,
+        search: str | None = None,
+        page: int = 1,
+        page_size: int = PAGE_SIZE,
+    ) -> tuple[list[Finding], int]:
         query = "SELECT * FROM findings WHERE 1=1"
         count_query = "SELECT COUNT(*) as c FROM findings WHERE 1=1"
         params = []
@@ -164,7 +212,9 @@ class Store:
             params.append(scanner)
         if search:
             query += " AND (title LIKE ? OR description LIKE ? OR tool_name LIKE ?)"
-            count_query += " AND (title LIKE ? OR description LIKE ? OR tool_name LIKE ?)"
+            count_query += (
+                " AND (title LIKE ? OR description LIKE ? OR tool_name LIKE ?)"
+            )
             like = f"%{search}%"
             params.extend([like, like, like])
 
@@ -187,7 +237,9 @@ class Store:
         return result, total
 
     def get_finding(self, finding_id: str) -> Finding | None:
-        row = self._conn.execute("SELECT * FROM findings WHERE id = ?", (finding_id,)).fetchone()
+        row = self._conn.execute(
+            "SELECT * FROM findings WHERE id = ?", (finding_id,)
+        ).fetchone()
         if not row:
             return None
         d = dict(row)
@@ -263,21 +315,144 @@ class Store:
         fa_list = self.get_findings(scan_id=scan_a, page_size=10000)[0]
         fb_list = self.get_findings(scan_id=scan_b, page_size=10000)[0]
 
-        key_a = {(f.tool_name, f.title, f.severity.value if isinstance(f.severity, Severity) else f.severity) for f in fa_list}
-        key_b = {(f.tool_name, f.title, f.severity.value if isinstance(f.severity, Severity) else f.severity) for f in fb_list}
+        key_a = {
+            (
+                f.tool_name,
+                f.title,
+                f.severity.value if isinstance(f.severity, Severity) else f.severity,
+            )
+            for f in fa_list
+        }
+        key_b = {
+            (
+                f.tool_name,
+                f.title,
+                f.severity.value if isinstance(f.severity, Severity) else f.severity,
+            )
+            for f in fb_list
+        }
 
-        new_in_b = [f.model_dump() for f in fb_list if (f.tool_name, f.title, f.severity.value if isinstance(f.severity, Severity) else f.severity) not in key_a]
-        fixed_in_b = [f.model_dump() for f in fa_list if (f.tool_name, f.title, f.severity.value if isinstance(f.severity, Severity) else f.severity) not in key_b]
+        new_in_b = [
+            f.model_dump()
+            for f in fb_list
+            if (
+                f.tool_name,
+                f.title,
+                f.severity.value if isinstance(f.severity, Severity) else f.severity,
+            )
+            not in key_a
+        ]
+        fixed_in_b = [
+            f.model_dump()
+            for f in fa_list
+            if (
+                f.tool_name,
+                f.title,
+                f.severity.value if isinstance(f.severity, Severity) else f.severity,
+            )
+            not in key_b
+        ]
 
         return {
-            "scan_a": {"id": scan_a, "scanner": sa.scanner, "target": sa.target, "findings_count": sa.findings_count},
-            "scan_b": {"id": scan_b, "scanner": sb.scanner, "target": sb.target, "findings_count": sb.findings_count},
+            "scan_a": {
+                "id": scan_a,
+                "scanner": sa.scanner,
+                "target": sa.target,
+                "findings_count": sa.findings_count,
+            },
+            "scan_b": {
+                "id": scan_b,
+                "scanner": sb.scanner,
+                "target": sb.target,
+                "findings_count": sb.findings_count,
+            },
             "new_findings": new_in_b,
             "fixed_findings": fixed_in_b,
             "new_count": len(new_in_b),
             "fixed_count": len(fixed_in_b),
             "unchanged_count": len(fb_list) - len(new_in_b),
         }
+
+    def save_event(self, event: SecurityEvent) -> SecurityEvent:
+        import uuid
+
+        event.id = event.id or str(uuid.uuid4())
+        with self._conn:
+            self._conn.execute(
+                """INSERT OR REPLACE INTO security_events
+                   (id, event_type, severity, message, source, tool, details, blocked, created_at)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                (
+                    event.id,
+                    event.event_type,
+                    event.severity,
+                    event.message,
+                    event.source,
+                    event.tool,
+                    json.dumps(event.details) if event.details else None,
+                    1 if event.blocked else 0,
+                    event.created_at,
+                ),
+            )
+        return event
+
+    def get_events(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        severity: str | None = None,
+        event_type: str | None = None,
+    ) -> tuple[list[SecurityEvent], int]:
+        query = "SELECT * FROM security_events WHERE 1=1"
+        count_query = "SELECT COUNT(*) as c FROM security_events WHERE 1=1"
+        params: list = []
+        if severity:
+            query += " AND severity = ?"
+            count_query += " AND severity = ?"
+            params.append(severity)
+        if event_type:
+            query += " AND event_type = ?"
+            count_query += " AND event_type = ?"
+            params.append(event_type)
+        count_row = self._conn.execute(count_query, params).fetchone()
+        total = count_row["c"] if count_row else 0
+        query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        rows = self._conn.execute(query, params + [limit, offset]).fetchall()
+        result = []
+        for r in rows:
+            d = dict(r)
+            if d.get("details"):
+                try:
+                    d["details"] = json.loads(d["details"])
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            d["blocked"] = bool(d["blocked"])
+            result.append(SecurityEvent(**d))
+        return result, total
+
+    def get_event_stats(self) -> dict:
+        total = self._conn.execute(
+            "SELECT COUNT(*) as c FROM security_events"
+        ).fetchone()["c"]
+        blocked = self._conn.execute(
+            "SELECT COUNT(*) as c FROM security_events WHERE blocked = 1"
+        ).fetchone()["c"]
+        by_type = self._conn.execute(
+            "SELECT event_type, COUNT(*) as count FROM security_events GROUP BY event_type ORDER BY count DESC"
+        ).fetchall()
+        by_severity = self._conn.execute(
+            "SELECT severity, COUNT(*) as count FROM security_events GROUP BY severity ORDER BY count DESC"
+        ).fetchall()
+        return {
+            "total": total,
+            "blocked": blocked,
+            "by_type": [dict(r) for r in by_type],
+            "by_severity": [dict(r) for r in by_severity],
+        }
+
+    def clear_events(self):
+        with self._conn:
+            self._conn.execute("DELETE FROM security_events")
 
     def clear(self):
         with self._conn:
@@ -300,16 +475,22 @@ class Store:
 
     def prune(self, keep_days: int = 30) -> int:
         from datetime import datetime, timedelta, timezone
+
         cutoff = (datetime.now(timezone.utc) - timedelta(days=keep_days)).isoformat()
         with self._conn:
-            cur = self._conn.execute("DELETE FROM findings WHERE scan_id IN (SELECT id FROM scan_runs WHERE created_at < ?)", (cutoff,))
-            deleted_findings = cur.rowcount
-            cur = self._conn.execute("DELETE FROM scan_runs WHERE created_at < ?", (cutoff,))
+            self._conn.execute(
+                "DELETE FROM findings WHERE scan_id IN (SELECT id FROM scan_runs WHERE created_at < ?)",
+                (cutoff,),
+            )
+            cur = self._conn.execute(
+                "DELETE FROM scan_runs WHERE created_at < ?", (cutoff,)
+            )
             deleted_scans = cur.rowcount
         return deleted_scans
 
     def seed_demo_data(self):
         import random
+
         scanners_demo = ["cisco-mcp", "cisco-a2a", "mcp-scan", "mcpwn"]
         tools_pool = [
             ("execute_command", "critical"),
@@ -326,7 +507,7 @@ class Store:
         now = datetime.now(timezone.utc)
         for i in range(6):
             scanner = random.choice(scanners_demo)
-            scan_id = f"demo-scan-{i+1}"
+            scan_id = f"demo-scan-{i + 1}"
             target = f"demo-server-{i % 3 + 1}.local"
             created = (now - timedelta(hours=i * 12)).isoformat()
             count = random.randint(2, 6)
@@ -334,16 +515,18 @@ class Store:
             findings = []
             for tool_name, sev_str in selected:
                 sev = Severity(sev_str)
-                findings.append(Finding(
-                    scan_id=scan_id,
-                    scanner=scanner,
-                    tool_name=tool_name,
-                    severity=sev,
-                    title=f"{sev.name.title()}: {tool_name.replace('_', ' ').title()}",
-                    description=f"Security issue detected in {tool_name}",
-                    recommendation=f"Review and fix {tool_name} configuration",
-                    created_at=created,
-                ))
+                findings.append(
+                    Finding(
+                        scan_id=scan_id,
+                        scanner=scanner,
+                        tool_name=tool_name,
+                        severity=sev,
+                        title=f"{sev.name.title()}: {tool_name.replace('_', ' ').title()}",
+                        description=f"Security issue detected in {tool_name}",
+                        recommendation=f"Review and fix {tool_name} configuration",
+                        created_at=created,
+                    )
+                )
             scan = ScanRun(
                 id=scan_id,
                 scanner=scanner,

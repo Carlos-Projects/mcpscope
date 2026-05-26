@@ -1,17 +1,41 @@
 from __future__ import annotations
 import csv
+import hmac
 import io
-import json
+import re
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Request, HTTPException, Query, UploadFile, File, Form
+from fastapi import APIRouter, Request, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 from mcpscope.models.finding import Severity
-from mcpscope.models.scan import ScanRun
+from mcpscope.models.security_event import SecurityEvent
 
 router = APIRouter()
 PAGE_SIZE = 50
+
+_JS_UNSAFE_RE = re.compile(r"</[sS][cC][rR][iI][pP][tT]|<!\[CDATA\[|]]>")
+
+
+def _sanitize_js(val: str, max_len: int = 200) -> str:
+    s = str(val)
+    s = _JS_UNSAFE_RE.sub("", s)
+    s = s.replace("\0", "")
+    return s[:max_len]
+
+
+def _sanitize_tools(tools: list[dict]) -> list[dict]:
+    return [
+        {k: _sanitize_js(v) if isinstance(v, str) else v for k, v in t.items()}
+        for t in tools
+    ]
+
+
+def _sanitize_trend(trend: list[dict]) -> list[dict]:
+    return [
+        {k: _sanitize_js(v) if isinstance(v, str) else v for k, v in t.items()}
+        for t in trend
+    ]
 
 
 def get_store(request: Request):
@@ -27,8 +51,52 @@ def health():
     return {"status": "ok"}
 
 
+def _session_value(password: str, client_ip: str) -> str:
+    h = hmac.new(password.encode(), client_ip.encode(), "sha256")
+    return h.hexdigest()
+
+
+@router.get("/login", response_class=HTMLResponse)
+def login_page(request: Request):
+    templates = get_templates(request)
+    if not templates:
+        return HTMLResponse("<h1>Not found</h1>", status_code=500)
+    return templates.TemplateResponse(request, "login.html", {})
+
+
+@router.post("/api/login")
+def login(request: Request, response: Response, body: dict = None):
+    cfg = request.app.state
+    if not cfg.dashboard_password:
+        return JSONResponse({"error": "Dashboard auth not configured"}, status_code=403)
+    password = (body or {}).get("password", "")
+    if not hmac.compare_digest(password, cfg.dashboard_password):
+        return JSONResponse({"error": "Invalid password"}, status_code=401)
+    ip = request.client.host if request.client else ""
+    session = _session_value(cfg.dashboard_password, ip)
+    response.set_cookie(
+        key="mcpscope_session",
+        value=session,
+        max_age=86400,
+        httponly=True,
+        samesite="lax",
+        secure=False,
+    )
+    return {"status": "ok"}
+
+
+@router.post("/api/logout")
+def logout(response: Response):
+    response.delete_cookie("mcpscope_session")
+    return {"status": "ok"}
+
+
 @router.get("/api/scans")
-def list_scans(request: Request, page: int = Query(1, ge=1), page_size: int = Query(PAGE_SIZE, ge=1, le=200)):
+def list_scans(
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(PAGE_SIZE, ge=1, le=200),
+):
     store = get_store(request)
     scans, total = store.get_scans_paginated(page, page_size)
     return {
@@ -41,12 +109,19 @@ def list_scans(request: Request, page: int = Query(1, ge=1), page_size: int = Qu
 
 
 @router.get("/api/scans/{scan_id}")
-def get_scan(request: Request, scan_id: str, page: int = Query(1, ge=1), page_size: int = Query(PAGE_SIZE, ge=1, le=200)):
+def get_scan(
+    request: Request,
+    scan_id: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(PAGE_SIZE, ge=1, le=200),
+):
     store = get_store(request)
     scan = store.get_scan(scan_id)
     if not scan:
         raise HTTPException(404, "Scan not found")
-    findings, total = store.get_findings(scan_id=scan_id, page=page, page_size=page_size)
+    findings, total = store.get_findings(
+        scan_id=scan_id, page=page, page_size=page_size
+    )
     return {
         "scan": scan.model_dump(),
         "findings": [f.model_dump() for f in findings],
@@ -79,8 +154,13 @@ def list_findings(
 ):
     store = get_store(request)
     findings, total = store.get_findings(
-        scan_id=scan_id, severity=severity, tool_name=tool_name,
-        scanner=scanner, search=search, page=page, page_size=page_size,
+        scan_id=scan_id,
+        severity=severity,
+        tool_name=tool_name,
+        scanner=scanner,
+        search=search,
+        page=page,
+        page_size=page_size,
     )
     return {
         "findings": [f.model_dump() for f in findings],
@@ -98,7 +178,10 @@ def get_finding(request: Request, finding_id: str):
     if not finding:
         raise HTTPException(404, "Finding not found")
     scan = store.get_scan(finding.scan_id)
-    return {"finding": finding.model_dump(), "scan": scan.model_dump() if scan else None}
+    return {
+        "finding": finding.model_dump(),
+        "scan": scan.model_dump() if scan else None,
+    }
 
 
 @router.get("/api/stats/top-tools")
@@ -157,15 +240,43 @@ def report_csv(request: Request):
     findings, _ = store.get_findings(page_size=100000)
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["id", "scan_id", "scanner", "tool_name", "severity", "title",
-                      "description", "recommendation", "cvss_score", "cve_id", "created_at"])
+    writer.writerow(
+        [
+            "id",
+            "scan_id",
+            "scanner",
+            "tool_name",
+            "severity",
+            "title",
+            "description",
+            "recommendation",
+            "cvss_score",
+            "cve_id",
+            "created_at",
+        ]
+    )
     for f in findings:
         sev = f.severity.value if isinstance(f.severity, Severity) else str(f.severity)
-        writer.writerow([f.id, f.scan_id, f.scanner, f.tool_name, sev, f.title,
-                         f.description or "", f.recommendation or "",
-                         f.cvss_score or "", f.cve_id or "", f.created_at])
-    return PlainTextResponse(output.getvalue(), media_type="text/csv",
-                             headers={"Content-Disposition": "attachment; filename=mcpscope-report.csv"})
+        writer.writerow(
+            [
+                f.id,
+                f.scan_id,
+                f.scanner,
+                f.tool_name,
+                sev,
+                f.title,
+                f.description or "",
+                f.recommendation or "",
+                f.cvss_score or "",
+                f.cve_id or "",
+                f.created_at,
+            ]
+        )
+    return PlainTextResponse(
+        output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=mcpscope-report.csv"},
+    )
 
 
 @router.get("/api/report/json")
@@ -193,6 +304,51 @@ def report_json(request: Request):
     }
 
 
+@router.post("/api/events")
+async def ingest_event(request: Request):
+    store = get_store(request)
+    body = await request.json()
+    event = SecurityEvent(**body)
+    saved = store.save_event(event)
+    return {"status": "ok", "id": saved.id}
+
+
+@router.get("/api/events")
+def list_events(
+    request: Request,
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    severity: str | None = Query(None),
+    event_type: str | None = Query(None),
+):
+    store = get_store(request)
+    events, total = store.get_events(
+        limit=limit,
+        offset=offset,
+        severity=severity,
+        event_type=event_type,
+    )
+    return {
+        "events": [e.model_dump() for e in events],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.get("/api/events/stats")
+def event_stats(request: Request):
+    store = get_store(request)
+    return store.get_event_stats()
+
+
+@router.delete("/api/events")
+def clear_events(request: Request):
+    store = get_store(request)
+    store.clear_events()
+    return {"status": "ok"}
+
+
 @router.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
     store = get_store(request)
@@ -218,8 +374,8 @@ def dashboard(request: Request):
             "medium": history.total_medium,
             "low": history.total_low,
             "info": history.total_info,
-            "top_tools": top_tools_data,
-            "trend_data": trend_data,
+            "top_tools": _sanitize_tools(top_tools_data),
+            "trend_data": _sanitize_trend(trend_data),
             "scans": history.scans,
             "scanners": scanners,
             "tool_names": tool_names,
@@ -243,10 +399,19 @@ def finding_detail(request: Request, finding_id: str):
         request,
         "dashboard.html",
         {
-            "total_scans": 0, "total_findings": 0,
-            "critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0,
-            "top_tools": [], "trend_data": [], "scans": [],
-            "scanners": [], "tool_names": [], "duplicates": [],
+            "total_scans": 0,
+            "total_findings": 0,
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0,
+            "top_tools": [],
+            "trend_data": [],
+            "scans": [],
+            "scanners": [],
+            "tool_names": [],
+            "duplicates": [],
             "detail_finding": finding,
             "detail_scan": scan,
             "auto_refresh": 0,

@@ -180,12 +180,17 @@
             <div class="card info"><div class="label">Info</div><div class="value">{{ info }}</div></div>
         </div>
 
+        <div id="event-stats" style="display:none;margin-bottom:20px;">
+            <div class="stats-grid" id="event-stats-grid"></div>
+        </div>
+
         <div class="nav-tabs">
             <a href="#" class="active" onclick="showTab('overview')" id="tab-overview">Overview</a>
             <a href="#" onclick="showTab('findings')" id="tab-findings">Findings</a>
             <a href="#" onclick="showTab('scans')" id="tab-scans">Scans</a>
             <a href="#" onclick="showTab('duplicates');loadDuplicates()" id="tab-duplicates">Duplicates ({{ duplicates|length }})</a>
             <a href="#" onclick="showTab('diff')" id="tab-diff">Diff</a>
+            <a href="#" onclick="showTab('events');loadEvents()" id="tab-events">Live Events</a>
         </div>
 
         <div id="section-overview">
@@ -296,6 +301,35 @@
                 <div id="diff-results"><p style="color:#64748b;padding:20px;">Select two scans and click Compare.</p></div>
             </div>
         </div>
+
+        <div id="section-events" style="display:none">
+            <div class="filters">
+                <label>Severity</label>
+                <select id="event-filter-severity" onchange="loadEvents()">
+                    <option value="">All</option>
+                    <option value="critical">Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                    <option value="info">Info</option>
+                </select>
+                <label>Type</label>
+                <select id="event-filter-type" onchange="loadEvents()">
+                    <option value="">All</option>
+                    <option value="prompt_injection">Prompt Injection</option>
+                    <option value="jailbreak_pattern">Jailbreak Pattern</option>
+                    <option value="stego_detection">Steganography</option>
+                    <option value="suspicious_resource">Suspicious Resource</option>
+                    <option value="tool_poisoning">Tool Poisoning</option>
+                    <option value="anomaly">Anomaly</option>
+                </select>
+                <button onclick="clearEvents()" style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:8px 16px;cursor:pointer;">Clear Events</button>
+            </div>
+            <div class="chart-box full" id="events-table-container">
+                <div id="events-table-placeholder">Loading...</div>
+            </div>
+            <div class="pagination" id="events-pagination"></div>
+        </div>
         {% endif %}
     </div>
 
@@ -357,7 +391,7 @@
         {% endif %}
 
         function showTab(name) {
-            ['overview','findings','scans','duplicates','diff'].forEach(function(t) {
+            ['overview','findings','scans','duplicates','diff','events'].forEach(function(t) {
                 var el = document.getElementById('section-'+t);
                 if (el) el.style.display = t === name ? '' : 'none';
                 var tab = document.getElementById('tab-'+t);
@@ -426,6 +460,69 @@
                     cont.innerHTML = html;
                 })
                 .catch(function(e) { cont.innerHTML = '<p style="color:#dc2626;">Error: ' + e + '</p>'; });
+        }
+
+        var eventPage = 0;
+        function loadEvents() {
+            var sev = document.getElementById('event-filter-severity').value;
+            var type = document.getElementById('event-filter-type').value;
+            var cont = document.getElementById('events-table-placeholder');
+            cont.innerHTML = 'Loading...';
+
+            var params = 'limit=50&offset=' + eventPage;
+            if (sev) params += '&severity=' + sev;
+            if (type) params += '&event_type=' + type;
+
+            Promise.all([
+                fetch('/api/events?' + params).then(function(r) { return r.json(); }),
+                fetch('/api/events/stats').then(function(r) { return r.json(); }),
+            ]).then(function(results) {
+                var data = results[0];
+                var stats = results[1];
+
+                var es = document.getElementById('event-stats');
+                es.style.display = stats.total > 0 ? '' : 'none';
+                var grid = document.getElementById('event-stats-grid');
+                grid.innerHTML =
+                    '<div class="card total"><div class="label">Events</div><div class="value">' + stats.total + '</div></div>' +
+                    '<div class="card critical"><div class="label">Blocked</div><div class="value">' + stats.blocked + '</div></div>' +
+                    (stats.by_type || []).map(function(t) {
+                        var colors = {prompt_injection:'#dc2626',jailbreak_pattern:'#ea580c',stego_detection:'#8b5cf6',suspicious_resource:'#ca8a04',tool_poisoning:'#2563eb',anomaly:'#6b7280'};
+                        return '<div class="card" style="border-color:' + (colors[t.event_type]||'#334155') + '"><div class="label">' + t.event_type + '</div><div class="value" style="font-size:20px;color:' + (colors[t.event_type]||'#94a3b8') + '">' + t.count + '</div></div>';
+                    }).join('');
+
+                var html = '<table><thead><tr><th>Time</th><th>Severity</th><th>Type</th><th>Message</th><th>Tool</th><th>Source</th></tr></thead><tbody>';
+                (data.events || []).forEach(function(e) {
+                    var sevClass = 'severity-' + (e.severity || 'info');
+                    var typeClass = 'severity-' + (e.blocked ? 'critical' : 'info');
+                    html += '<tr>';
+                    html += '<td style="white-space:nowrap;font-size:12px;">' + (e.created_at || '').substring(11,19) + '</td>';
+                    html += '<td><span class="severity-badge ' + sevClass + '">' + (e.severity||'').toUpperCase() + '</span></td>';
+                    html += '<td><span class="severity-badge ' + typeClass + '">' + (e.blocked ? 'BLOCKED' : 'MONITOR') + '</span></td>';
+                    html += '<td>' + (e.message||'').substring(0,60) + '</td>';
+                    html += '<td>' + (e.tool || '-') + '</td>';
+                    html += '<td>' + (e.source || '-') + '</td>';
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+                if (!data.events || data.events.length === 0) {
+                    html = '<div class="empty-state" style="padding:30px;"><p>No security events yet. Events appear here when MCPGuard sends them.</p><p style="margin-top:10px;">Configure MCPGuard to POST events to <code>/api/events</code></p></div>';
+                }
+                cont.innerHTML = html;
+                var p = document.getElementById('events-pagination');
+                var total = data.total || 0;
+                var pages = Math.ceil(total / 50);
+                var phtml = '<button onclick="eventPage=0;loadEvents()"' + (eventPage<=0?' disabled':'') + '>&laquo;</button>';
+                phtml += '<span style="color:#64748b;padding:0 10px;font-size:12px;">' + (eventPage+1) + '/' + Math.max(pages,1) + '</span>';
+                phtml += '<button onclick="eventPage=' + Math.min(eventPage+1,pages-1) + ';loadEvents()"' + (eventPage>=pages-1?' disabled':'') + '>&raquo;</button>';
+                p.innerHTML = phtml;
+            });
+        }
+
+        function clearEvents() {
+            if (!confirm('Delete all security events?')) return;
+            fetch('/api/events', { method: 'DELETE' })
+                .then(function() { eventPage = 0; loadEvents(); });
         }
 
         function loadFindings(page) {

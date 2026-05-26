@@ -1,0 +1,30 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "agent": {
+    "build": {
+      "tools": {
+        "skill": true
+      }
+    }
+  },
+
+  "command": {
+    "test": {
+      "template": "Run `python -m pytest tests/ -v` from the mcpscope directory and report results.",
+      "description": "Run MCPscop tests"
+    },
+    "serve": {
+      "template": "Start the MCPscop dashboard with `python -m mcpscope serve`.",
+      "description": "Start MCPscop dashboard"
+    },
+    "seed": {
+      "template": "Seed demo data with `python -m mcpscope seed`.",
+      "description": "Seed demo scan data"
+    },
+    "import": {
+      "template": "Import scanner results into MCPscop.",
+      "description": "Import scan results"
+    }
+  }
+}

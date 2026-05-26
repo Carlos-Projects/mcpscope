@@ -1,16 +1,12 @@
 from __future__ import annotations
 import json
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
-from typing import Any
 
 from mcpscope.ingest.cisco_mcp import CiscoMCPParser
-from mcpscope.ingest.cisco_a2a import CiscoA2AParser
 from mcpscope.ingest.mcpscan import MCPScanParser
 from mcpscope.ingest.mcpwn import MCPwnParser
-from mcpscope.models.finding import Finding
 from mcpscope.models.scan import ScanRun
 from mcpscope.storage.store import Store
 
@@ -34,10 +30,14 @@ class ScannerRunner:
         },
     }
 
-    def scan(self, scanner_name: str, target: str, store: Store | None = None) -> ScanRun:
+    def scan(
+        self, scanner_name: str, target: str, store: Store | None = None
+    ) -> ScanRun:
         info = self.PARSERS.get(scanner_name)
         if not info:
-            raise ValueError(f"Unknown scanner: {scanner_name}. Supported: {', '.join(self.PARSERS)}")
+            raise ValueError(
+                f"Unknown scanner: {scanner_name}. Supported: {', '.join(self.PARSERS)}"
+            )
 
         parser = info["parser"]
         cmd = info["cmd"] + [target]
@@ -48,7 +48,9 @@ class ScannerRunner:
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
             if result.returncode != 0:
-                raise RuntimeError(f"Scanner failed (exit {result.returncode}): {result.stderr[:500]}")
+                raise RuntimeError(
+                    f"Scanner failed (exit {result.returncode}): {result.stderr[:500]}"
+                )
             raw = json.loads(result.stdout)
         except FileNotFoundError:
             raise RuntimeError(

@@ -1,6 +1,5 @@
 from __future__ import annotations
 import json
-import os
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
@@ -12,7 +11,9 @@ MAX_UPLOAD_MB = Settings.load().max_upload_mb
 
 
 class ParseError(Exception):
-    def __init__(self, message: str, path: str | None = None, details: str | None = None):
+    def __init__(
+        self, message: str, path: str | None = None, details: str | None = None
+    ):
         self.path = path
         self.details = details
         super().__init__(message)
@@ -22,8 +23,7 @@ class BaseParser(ABC):
     SCANNER_NAME: str = "base"
 
     @abstractmethod
-    def parse(self, data: dict) -> list[Finding]:
-        ...
+    def parse(self, data: dict) -> list[Finding]: ...
 
     def validate(self, data: Any, path: str | None = None):
         if not isinstance(data, dict):
@@ -37,7 +37,10 @@ class BaseParser(ABC):
         if not path.exists():
             raise ParseError(f"File not found: {path}", path=str(path))
         if path.suffix not in (".json", ".sarif"):
-            raise ParseError(f"Unsupported file type: {path.suffix} (expected .json or .sarif)", path=str(path))
+            raise ParseError(
+                f"Unsupported file type: {path.suffix} (expected .json or .sarif)",
+                path=str(path),
+            )
 
         size_mb = path.stat().st_size / (1024 * 1024)
         if size_mb > MAX_UPLOAD_MB:

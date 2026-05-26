@@ -1,17 +1,28 @@
-# Changelog
+# MCPscop
 
-## [0.1.0] - 2026-05-23
+## [Unreleased]
 
 ### Added
-- Initial release of MCP-Scope
-- Parse and import results from Cisco MCP Scanner, Cisco A2A Scanner, mcp-scan, MCPwn, and SARIF
-- Web dashboard with Plotly charts (severity pie, top tools bar, severity trend)
-- REST API with pagination, filtering, search, and scan diff
-- CLI: `serve`, `scan`, `import`, `report` (json/csv/pdf), `seed`, `prune`, `backup`, `restore`, `config`
-- SQLite storage with scan history and deduplication
-- Webhook and Slack alerts for critical/high findings
-- API key authentication for CI/CD integration
-- Dockerfile and GitHub Actions workflow
-- Auto-refresh, finding detail view, scan comparison (diff)
-- File size validation on import
-- 46 unit and HTTP integration tests
+- Security events API and dashboard views
+- JSON logging output
+- Dashboard authentication
+- MCPGuard event forwarder integration
+
+### Fixed
+- API key validation in REST endpoints
+- CORS headers for cross-origin dashboard access
+- HTML sanitization in scan result display
+
+## [0.1.0] - 2025-08-01
+
+### Added
+- Unified dashboard for MCP/A2A scanner results
+- FastAPI REST API for scan ingestion and querying
+- SQLite storage backends
+- Plotly-based interactive charts and visualizations
+- Support for Cisco MCP/A2A scanner output
+- Support for mcp-scan output
+- Support for MCPwn output
+- SARIF format ingestion
+- Rich CLI output for terminal usage
+- Scan comparison and trend analysis

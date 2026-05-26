@@ -193,6 +193,24 @@ pip install -e ".[dev]"
 pytest
 ```
 
+## Security Events (MCPGuard Integration)
+
+MCP-Scope can receive real-time security events from MCPGuard:
+
+```bash
+# Configure MCPGuard's config.yaml:
+mcpscop_url: http://localhost:8000
+
+# Events appear in the "Live Events" dashboard tab
+```
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/events` | POST | Ingest a security event |
+| `/api/events` | GET | List events (filters: severity, event_type) |
+| `/api/events/stats` | GET | Event statistics |
+| `/api/events` | DELETE | Clear all events |
+
 ## License
 
 [MIT](LICENSE)

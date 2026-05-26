@@ -2,7 +2,6 @@ from __future__ import annotations
 import sys
 import json
 from pathlib import Path
-from typing import Optional
 
 from rich.console import Console
 from rich.table import Table
@@ -42,7 +41,9 @@ def cmd_import(args: list[str]):
 
     parser = PARSERS.get(scanner_name)
     if not parser:
-        console.print(f"[red]Unknown scanner: {scanner_name}. Available: {', '.join(PARSERS)}[/red]")
+        console.print(
+            f"[red]Unknown scanner: {scanner_name}. Available: {', '.join(PARSERS)}[/red]"
+        )
         sys.exit(1)
 
     if not file_path.exists():
@@ -96,12 +97,19 @@ def cmd_serve(args: list[str]):
             settings = Settings.load(args[i + 1])
 
     import uvicorn
+
     store = Store(db_path=settings.db_path)
     app = create_app(store)
     app.state.auto_refresh = settings.auto_refresh_seconds
-    console.print(f"[green]MCP-Scope dashboard running at http://{settings.host}:{settings.port}[/green]")
-    console.print(f"[dim]DB: {settings.db_path} | Auto-refresh: {settings.auto_refresh_seconds}s[/dim]")
-    uvicorn.run(app, host=settings.host, port=settings.port, log_level=settings.log_level)
+    console.print(
+        f"[green]MCP-Scope dashboard running at http://{settings.host}:{settings.port}[/green]"
+    )
+    console.print(
+        f"[dim]DB: {settings.db_path} | Auto-refresh: {settings.auto_refresh_seconds}s[/dim]"
+    )
+    uvicorn.run(
+        app, host=settings.host, port=settings.port, log_level=settings.log_level
+    )
 
 
 def cmd_report(args: list[str]):
@@ -140,26 +148,52 @@ def cmd_report(args: list[str]):
 
     elif fmt == "csv":
         import csv
+
         store = Store()
         findings, _ = store.get_findings(page_size=100000)
         with open(out_path, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["id", "scan_id", "scanner", "tool_name", "severity",
-                             "title", "description", "recommendation", "created_at"])
+            writer.writerow(
+                [
+                    "id",
+                    "scan_id",
+                    "scanner",
+                    "tool_name",
+                    "severity",
+                    "title",
+                    "description",
+                    "recommendation",
+                    "created_at",
+                ]
+            )
             for finding in findings:
-                sev = finding.severity.value if hasattr(finding.severity, 'value') else finding.severity
-                writer.writerow([finding.id, finding.scan_id, finding.scanner,
-                                 finding.tool_name, sev, finding.title,
-                                 (finding.description or "")[:200],
-                                 (finding.recommendation or "")[:200],
-                                 finding.created_at])
+                sev = (
+                    finding.severity.value
+                    if hasattr(finding.severity, "value")
+                    else finding.severity
+                )
+                writer.writerow(
+                    [
+                        finding.id,
+                        finding.scan_id,
+                        finding.scanner,
+                        finding.tool_name,
+                        sev,
+                        finding.title,
+                        (finding.description or "")[:200],
+                        (finding.recommendation or "")[:200],
+                        finding.created_at,
+                    ]
+                )
         console.print(f"[green]CSV report written to {out_path.resolve()}[/green]")
 
     elif fmt == "pdf":
         try:
             from weasyprint import HTML
         except ImportError:
-            console.print("[red]PDF generation requires: pip install mcpscope[pdf][/red]")
+            console.print(
+                "[red]PDF generation requires: pip install mcpscope[pdf][/red]"
+            )
             sys.exit(1)
 
         html_content = _render_report_html(report_data)
@@ -175,11 +209,17 @@ def cmd_seed(args: list[str]):
     store = Store()
     store.seed_demo_data()
     history = store.get_scan_history()
-    console.print(f"[green]Seeded {len(history.scans)} demo scans with {history.total_findings} findings[/green]")
+    console.print(
+        f"[green]Seeded {len(history.scans)} demo scans with {history.total_findings} findings[/green]"
+    )
 
 
 def cmd_backup(args: list[str]):
-    output = args[0] if args else f"mcpscope-backup-{__import__('datetime').datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+    output = (
+        args[0]
+        if args
+        else f"mcpscope-backup-{__import__('datetime').datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+    )
     store = Store()
     store.backup(output)
     console.print(f"[green]Backup saved to {Path(output).resolve()}[/green]")
@@ -196,7 +236,9 @@ def cmd_restore(args: list[str]):
     store = Store()
     store.restore(path)
     history = store.get_scan_history()
-    console.print(f"[green]Restored {len(history.scans)} scans, {history.total_findings} findings[/green]")
+    console.print(
+        f"[green]Restored {len(history.scans)} scans, {history.total_findings} findings[/green]"
+    )
 
 
 def cmd_config(args: list[str]):
@@ -224,6 +266,7 @@ def cmd_config(args: list[str]):
                 setattr(settings, key, int(value))
             elif isinstance(current, list):
                 import json
+
                 try:
                     setattr(settings, key, json.loads(value))
                 except (json.JSONDecodeError, TypeError):
@@ -253,7 +296,9 @@ def cmd_scan(args: list[str]):
 
     try:
         with Progress() as progress:
-            task = progress.add_task(f"Running {scanner_name} against {target}...", total=None)
+            task = progress.add_task(
+                f"Running {scanner_name} against {target}...", total=None
+            )
             scan = runner.scan(scanner_name, target, store=store)
             progress.update(task, completed=True)
     except (ValueError, RuntimeError) as e:
@@ -284,7 +329,9 @@ def cmd_prune(args: list[str]):
     store = Store()
     count = store.prune(keep_days)
     if count:
-        console.print(f"[green]Pruned {count} scans older than {keep_days} days[/green]")
+        console.print(
+            f"[green]Pruned {count} scans older than {keep_days} days[/green]"
+        )
     else:
         console.print(f"[yellow]No scans older than {keep_days} days to prune[/yellow]")
 
@@ -294,23 +341,23 @@ def _render_report_html(data: dict) -> str:
     scans_rows = ""
     for s in data["scans"]:
         scans_rows += f"""<tr>
-            <td>{s['id']}</td>
-            <td>{s['scanner']}</td>
-            <td>{s['findings_count']}</td>
-            <td>{s['critical_count']}</td>
-            <td>{s['high_count']}</td>
-            <td>{s['medium_count']}</td>
-            <td>{s['low_count']}</td>
-            <td>{s['info_count']}</td>
-            <td>{s['created_at']}</td>
+            <td>{s["id"]}</td>
+            <td>{s["scanner"]}</td>
+            <td>{s["findings_count"]}</td>
+            <td>{s["critical_count"]}</td>
+            <td>{s["high_count"]}</td>
+            <td>{s["medium_count"]}</td>
+            <td>{s["low_count"]}</td>
+            <td>{s["info_count"]}</td>
+            <td>{s["created_at"]}</td>
         </tr>"""
 
     tools_rows = ""
     for t in data.get("top_tools", []):
         tools_rows += f"""<tr>
-            <td>{t['tool_name']}</td>
-            <td>{t['total']}</td>
-            <td>{t['critical_high']}</td>
+            <td>{t["tool_name"]}</td>
+            <td>{t["total"]}</td>
+            <td>{t["critical_high"]}</td>
         </tr>"""
 
     return f"""<!DOCTYPE html>
@@ -328,15 +375,15 @@ th {{ background: #f1f5f9; }}
 .card .value {{ font-size: 28px; font-weight: bold; color: #0f172a; }}
 </style></head><body>
 <h1>MCP-Scope Security Report</h1>
-<p>Generated: {data['generated_at']}</p>
+<p>Generated: {data["generated_at"]}</p>
 <h2>Summary</h2>
 <div class="summary-grid">
-    <div class="card"><h3>Total Scans</h3><div class="value">{summary['total_scans']}</div></div>
-    <div class="card"><h3>Total Findings</h3><div class="value">{summary['total_findings']}</div></div>
-    <div class="card"><h3>Critical</h3><div class="value">{summary['critical']}</div></div>
-    <div class="card"><h3>High</h3><div class="value">{summary['high']}</div></div>
-    <div class="card"><h3>Medium</h3><div class="value">{summary['medium']}</div></div>
-    <div class="card"><h3>Low</h3><div class="value">{summary['low']}</div></div>
+    <div class="card"><h3>Total Scans</h3><div class="value">{summary["total_scans"]}</div></div>
+    <div class="card"><h3>Total Findings</h3><div class="value">{summary["total_findings"]}</div></div>
+    <div class="card"><h3>Critical</h3><div class="value">{summary["critical"]}</div></div>
+    <div class="card"><h3>High</h3><div class="value">{summary["high"]}</div></div>
+    <div class="card"><h3>Medium</h3><div class="value">{summary["medium"]}</div></div>
+    <div class="card"><h3>Low</h3><div class="value">{summary["low"]}</div></div>
 </div>
 <h2>Scan History</h2>
 <table><thead><tr><th>ID</th><th>Scanner</th><th>Total</th><th>Critical</th><th>High</th><th>Medium</th><th>Low</th><th>Info</th><th>Date</th></tr></thead>

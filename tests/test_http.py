@@ -1,6 +1,4 @@
 import pytest
-import json
-from pathlib import Path
 
 from mcpscope.api.server import create_app
 from mcpscope.storage.store import Store
@@ -10,16 +8,31 @@ from mcpscope.models.scan import ScanRun
 
 @pytest.fixture
 def store():
-    import tempfile, os
+    import tempfile
+    import os
+
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
     s = Store(db_path=db_path)
-    s.save_scan(ScanRun(id="http-test", scanner="test", target="t"), [
-        Finding(scan_id="http-test", scanner="test", tool_name="tool_a",
-                severity=Severity.CRITICAL, title="Critical finding"),
-        Finding(scan_id="http-test", scanner="test", tool_name="tool_b",
-                severity=Severity.LOW, title="Low priority"),
-    ])
+    s.save_scan(
+        ScanRun(id="http-test", scanner="test", target="t"),
+        [
+            Finding(
+                scan_id="http-test",
+                scanner="test",
+                tool_name="tool_a",
+                severity=Severity.CRITICAL,
+                title="Critical finding",
+            ),
+            Finding(
+                scan_id="http-test",
+                scanner="test",
+                tool_name="tool_b",
+                severity=Severity.LOW,
+                title="Low priority",
+            ),
+        ],
+    )
     yield s
     s._conn.close()
     os.unlink(db_path)
@@ -28,6 +41,7 @@ def store():
 @pytest.fixture
 def client(store):
     from httpx import AsyncClient, ASGITransport
+
     app = create_app(store)
     transport = ASGITransport(app=app)
     return AsyncClient(transport=transport, base_url="http://test")
@@ -198,13 +212,16 @@ async def test_finding_detail_html(client):
 async def test_api_key_protection(client):
     from mcpscope.api.server import create_app
     from mcpscope.config import Settings
-    import tempfile, os
+    import tempfile
+    import os
+
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
     s = Store(db_path=db_path)
     cfg = Settings(api_key="test-key-123")
     app = create_app(s, settings=cfg)
     from httpx import AsyncClient, ASGITransport
+
     transport = ASGITransport(app=app)
     c = AsyncClient(transport=transport, base_url="http://test")
 
@@ -238,7 +255,11 @@ async def test_diff_endpoint(client):
 @pytest.mark.asyncio
 async def test_cors_headers(client):
     r = await client.options("/api/health")
-    assert "access-control-allow-origin" in r.headers or r.status_code in (200, 204, 405)
+    assert "access-control-allow-origin" in r.headers or r.status_code in (
+        200,
+        204,
+        405,
+    )
 
 
 @pytest.mark.asyncio
@@ -253,3 +274,56 @@ async def test_openapi_json(client):
     assert r.status_code in (200, 404)
     if r.status_code == 200:
         assert r.json()["info"]["title"] == "MCP-Scope API"
+
+
+@pytest.mark.asyncio
+async def test_post_event(client):
+    r = await client.post(
+        "/api/events",
+        json={
+            "event_type": "prompt_injection",
+            "severity": "high",
+            "message": "Test injection blocked",
+            "source": "mcpguard-test",
+            "blocked": True,
+        },
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["status"] == "ok"
+    assert data["id"] is not None
+
+
+@pytest.mark.asyncio
+async def test_list_events(client):
+    await client.post(
+        "/api/events",
+        json={
+            "event_type": "jailbreak_pattern",
+            "severity": "critical",
+            "message": "GODMODE detected",
+            "tool": "test_tool",
+        },
+    )
+    r = await client.get("/api/events")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] >= 1
+    assert len(data["events"]) >= 1
+    assert data["events"][0]["event_type"] == "jailbreak_pattern"
+
+
+@pytest.mark.asyncio
+async def test_event_stats(client):
+    r = await client.get("/api/events/stats")
+    assert r.status_code == 200
+    data = r.json()
+    assert "total" in data
+    assert "blocked" in data
+
+
+@pytest.mark.asyncio
+async def test_clear_events(client):
+    r = await client.delete("/api/events")
+    assert r.status_code == 200
+    assert r.json()["status"] == "ok"

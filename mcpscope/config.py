@@ -1,9 +1,7 @@
 from __future__ import annotations
 import json
-import os
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional
 
 DEFAULT_CONFIG_PATH = Path.home() / ".mcpscope" / "config.json"
 
@@ -19,6 +17,8 @@ class Settings:
     webhook_urls: list[str] = field(default_factory=list)
     slack_webhook_url: str | None = None
     max_upload_mb: int = 50
+    dashboard_password: str | None = None
+    log_json: bool = False
 
     @classmethod
     def load(cls, path: str | Path | None = None) -> Settings:
@@ -27,7 +27,9 @@ class Settings:
             try:
                 with open(path) as f:
                     data = json.load(f)
-                return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+                return cls(
+                    **{k: v for k, v in data.items() if k in cls.__dataclass_fields__}
+                )
             except (json.JSONDecodeError, TypeError):
                 pass
         return cls()
