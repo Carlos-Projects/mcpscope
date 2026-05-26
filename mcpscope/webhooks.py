@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 from mcpscope.models.finding import Finding, Severity
 
@@ -110,18 +112,21 @@ def notify_scan_imported(
             }
         )
 
-    import asyncio
+    if webhooks or slack_url:
 
-    if webhooks:
-        payload = {"event": "scan_imported", "summary": summary, "alerts": alerts}
+        async def _notify():
+            if webhooks:
+                payload = {
+                    "event": "scan_imported",
+                    "summary": summary,
+                    "alerts": alerts,
+                }
+                await fire_webhooks(webhooks, "scan_imported", payload)
+            if slack_url:
+                await fire_slack(slack_url, scan_id, scanner, summary, alerts)
+
         try:
-            asyncio.create_task(fire_webhooks(webhooks, "scan_imported", payload))
-        except RuntimeError:
-            pass
-    if slack_url:
-        try:
-            asyncio.create_task(
-                fire_slack(slack_url, scan_id, scanner, summary, alerts)
-            )
+            task = asyncio.ensure_future(_notify())
+            task.add_done_callback(lambda t: t.exception())
         except RuntimeError:
             pass
