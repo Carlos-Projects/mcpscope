@@ -9,6 +9,9 @@
 [![License](https://img.shields.io/github/license/Carlos-Projects/mcpscope)](LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/Carlos-Projects/mcpscope)](https://github.com/Carlos-Projects/mcpscope/releases)
 [![Code style](https://img.shields.io/badge/code%20style-ruff-261230)](https://docs.astral.sh/ruff)
+[![HuggingFace Space](https://img.shields.io/badge/🤗%20Try%20it%20now-HF%20Spaces-yellow)](https://huggingface.co/spaces/Syntho/mcpscope)
+
+**[Try it live on HuggingFace Spaces](https://huggingface.co/spaces/Syntho/mcpscope)** — see the dashboard with seeded demo data.
 
 ---
 
