@@ -2,7 +2,9 @@ from __future__ import annotations
 import json
 import subprocess
 import tempfile
+import uuid
 from pathlib import Path
+from typing import Any
 
 from mcpscope.ingest.cisco_mcp import CiscoMCPParser
 from mcpscope.ingest.mcpscan import MCPScanParser
@@ -12,7 +14,7 @@ from mcpscope.storage.store import Store
 
 
 class ScannerRunner:
-    PARSERS = {
+    PARSERS: dict[str, dict[str, Any]] = {
         "mcp-scan": {
             "parser": MCPScanParser(),
             "install": "pip install mcp-scan",
@@ -68,6 +70,7 @@ class ScannerRunner:
             raise RuntimeError("Scanner completed but no findings were detected")
 
         scan = ScanRun(
+            id=str(uuid.uuid4()),
             scanner=findings[0].scanner,
             target=target,
         )

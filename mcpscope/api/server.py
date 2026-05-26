@@ -17,7 +17,7 @@ DASHBOARD_COOKIE = "mcpscope_session"
 
 
 class JSONLogFormatter(logging.Formatter):
-    def format(self, record: logging.LoggerRecord) -> str:
+    def format(self, record: logging.LogRecord) -> str:
         return json.dumps(
             {
                 "time": self.formatTime(record, "%Y-%m-%dT%H:%M:%S"),

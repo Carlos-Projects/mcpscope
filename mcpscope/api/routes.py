@@ -11,7 +11,9 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from mcpscope.models.finding import Severity
 from mcpscope.models.security_event import SecurityEvent
 from mcp_taxonomy import (
-    AttackCategory, Severity as TaxSeverity, DetectionMethod,
+    AttackCategory,
+    Severity as TaxSeverity,
+    DetectionMethod,
     palisade_finding_to_taxonomy,
     mcpguard_event_to_taxonomy,
     mcpwn_finding_to_taxonomy,
@@ -92,20 +94,24 @@ def normalize_taxonomy(body: dict):
         )
     else:
         return JSONResponse({"error": f"Unknown source: {source}"}, status_code=400)
-    return JSONResponse({
-        "source": event.source,
-        "attack_category": event.attack_category.value,
-        "severity": event.severity.value,
-        "confidence": event.confidence.value,
-        "detection_method": event.detection_method.value if isinstance(event.detection_method, DetectionMethod) else event.detection_method,
-        "title": event.title,
-        "description": event.description,
-        "recommendation": event.recommendation,
-        "target": event.target,
-        "snippet": event.snippet[:200] if event.snippet else "",
-        "blocked": event.blocked,
-        "risk_score": event.risk_score,
-    })
+    return JSONResponse(
+        {
+            "source": event.source,
+            "attack_category": event.attack_category.value,
+            "severity": event.severity.value,
+            "confidence": event.confidence.value,
+            "detection_method": event.detection_method.value
+            if isinstance(event.detection_method, DetectionMethod)
+            else event.detection_method,
+            "title": event.title,
+            "description": event.description,
+            "recommendation": event.recommendation,
+            "target": event.target,
+            "snippet": event.snippet[:200] if event.snippet else "",
+            "blocked": event.blocked,
+            "risk_score": event.risk_score,
+        }
+    )
 
 
 def _session_value(password: str, client_ip: str) -> str:
@@ -122,7 +128,7 @@ def login_page(request: Request):
 
 
 @router.post("/api/login")
-def login(request: Request, response: Response, body: dict = None):
+def login(request: Request, response: Response, body: dict | None = None):
     cfg = request.app.state
     if not cfg.dashboard_password:
         return JSONResponse({"error": "Dashboard auth not configured"}, status_code=403)
