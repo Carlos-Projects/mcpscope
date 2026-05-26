@@ -55,5 +55,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/carlos-projects/mcpscope:latest
-            ghcr.io/carlos-projects/mcpscope:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.ref_name }}
