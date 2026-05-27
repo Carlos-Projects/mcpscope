@@ -223,6 +223,14 @@ MCPscop is part of the **Carlos-Projects** security ecosystem for AI agents:
 - [**Palisade Scanner**](https://github.com/Carlos-Projects/palisade-scanner) — Scan web content for prompt injection and adversarial content
 - [**AgentGate**](https://github.com/Carlos-Projects/agentgate) — Policy-based firewall and honeypot middleware for AI agents accessing websites
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
+
+## Security
+
+Found a vulnerability? See [SECURITY.md](SECURITY.md).
+
 ## License
 
 [MIT](LICENSE)
