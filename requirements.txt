@@ -1,5 +1,5 @@
 Jinja2==3.1.6
-fastapi==0.136.1
+fastapi==0.139.2
 httpx-sse==0.4.3
 httpx==0.28.1
 plotly==6.7.0
