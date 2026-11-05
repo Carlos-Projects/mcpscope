@@ -4,7 +4,7 @@
 
 **Unified security dashboard for MCP/A2A scanner results**
 
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://python.org)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://python.org)
 [![Tests](https://img.shields.io/github/actions/workflow/status/Carlos-Projects/mcpscope/scan.yml?label=tests)](https://github.com/Carlos-Projects/mcpscope/actions)
 [![License](https://img.shields.io/github/license/Carlos-Projects/mcpscope)](LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/Carlos-Projects/mcpscope)](https://github.com/Carlos-Projects/mcpscope/releases)
